@@ -1,0 +1,455 @@
+---
+title: "Homework 1"
+author: "Maogong Ma"
+date: last-modified
+format:
+  pdf:
+    toc: true
+    number-sections: true
+    colorlinks: true
+execute:
+  echo: true
+  warning: false
+  message: false
+editor: visual
+---
+
+## 1
+
+### 1.1
+
+```{r}
+vectorized_zscore <- function(x) {
+  (x - mean(x, na.rm = TRUE)) / sd(x, na.rm = TRUE)
+}
+
+loop_zscore <- function(x) {
+output = numeric(length(x))
+for (i in seq_along(x)) {
+  output[i] = (x[i] - mean(x, na.rm = TRUE)) / sd(x, na.rm = TRUE)
+}
+return(output)
+}
+
+library(bench)
+library(tidyverse)
+x=iris$Petal.Length
+benchmark=bench::mark(
+  vectorized = vectorized_zscore(x),
+  loop = loop_zscore(x),
+  iterations = 50
+)
+barplot(as.numeric(benchmark$median), names.arg = c("Vectorized", "Loop"), ylab = "Median Time", main = "Z-score Function")
+
+chick = ChickWeight %>%
+    group_by(Chick) %>%
+    arrange(Time, .by_group = TRUE) %>%
+    mutate(
+    Growth.Rate = c(NA, diff(weight) / diff(Time))
+  ) %>%
+    summarize(
+    Diet = first(Diet),
+    Avg.Growth.Rate = mean(Growth.Rate, na.rm = TRUE),
+    Max.Weight = max(weight, na.rm = TRUE),
+    Weight.Gain.Percent = (max(weight, na.rm = TRUE) - first(weight)) / first(weight) * 100,
+    .groups = "drop"
+  ) %>%
+    group_by(Diet) %>%
+  summarize(
+    Mean.Avg.Growth.Rate = mean(Avg.Growth.Rate, na.rm = TRUE),
+    Mean.Max.Weight = mean(Max.Weight, na.rm = TRUE)
+  )
+chick
+```
+
+### 1.2
+
+```{r}
+library(palmerpenguins)
+penguin=split(penguins, penguins$species)
+penguin=lapply(penguin, function(df) {
+  attr(df, "sample_size") <- nrow(df)
+  return(df)
+})
+
+num=penguins[,sapply(penguins, is.numeric)]
+num_mean=lapply(num, mean, na.rm = TRUE)
+map <- map_dbl(num, mean, na.rm = TRUE)
+
+mean_species = tapply(penguins$body_mass_g, penguins$species, mean, na.rm = TRUE)
+mean_combination = tapply(penguins$body_mass_g, list(penguins$species, penguins$sex), mean, na.rm = TRUE)
+
+x <- c(1,1,1)
+tracemem(x)
+y <- x 
+y[1] <- 6
+untracemem(x)
+```
+
+When a new variable y is assigned from x, both variables initially point to the same memory address. A physical copy is only created when y is modified, and new memory is allocated to store the modified object, original variable x unchanged.
+
+```{r}
+n <- 100000
+system.time({
+  result_low <- NULL
+  for (i in 1:n) {
+    result_low <- c(result_low, i^2)
+  }
+})
+
+system.time({
+  result_hi = numeric(n) 
+  for (i in 1:n) {
+    result_hi[i] <- i^2
+  }
+})
+
+```
+
+The optimized version is faster because it allocates memory before the loop, but the original version needs to reallocate memory and copy all data every time it produces a new element.
+
+## 2
+
+### 2.1
+
+```{r}
+A <- matrix(c(4, 2, 1, 5), nrow = 2)
+B <- matrix(c(3, 1, 0, 2), nrow = 2)
+C <- matrix(c(1, 3, 5, 2, 4, 6), nrow = 2)
+
+A+B
+```
+
+Adding corresponding elements from matrices of identical dimensions.
+
+```{r}
+A * B
+```
+
+Multiplying corresponding elements from matrices of identical dimensions.
+
+```{r}
+A %*% B 
+```
+
+Inner product of two matrices.
+
+```{r}
+t(A) %*% C
+```
+
+Inner product of the transpose of A and C.
+
+```{r}
+solve(A)
+```
+
+Inverse of matrix A.
+
+```{r}
+is_symmetric <- function(X) {
+  if (nrow(X) != ncol(X)) {
+    stop("Input must be a Square Matrix")
+  }
+  isTRUE(all.equal(X, t(X)))
+}
+is_symmetric(A)
+is_symmetric(B)
+is_symmetric(t(A) %*% A)
+```
+
+### 2.2
+
+```{r}
+M <- matrix(c(4, 2, 2, 3), nrow = 2)
+ev=eigen(M)
+evalue=ev$values
+evector=ev$vectors
+
+isTRUE(all.equal(as.vector(M %*% evector[, 1]), evalue[1] * evector[, 1]))
+
+P <- evector
+D <- diag(evalue)
+M_hat <- P %*% D %*% solve(P)
+all.equal(M, M_hat)
+```
+
+### 2.3
+
+```{r}
+X <- matrix(c(3, 2, 2, 2, 3, -2, 2, -2, 3), nrow = 3)
+#Compute the SVD of the matrix below. Create a rank-1 approximation, calculate the Frobenius norm of the difference, and explain what information is lost.
+X_svd = svd(X)
+rank1 = X_svd$u[, 1, drop = FALSE] %*% diag(X_svd$d[1], nrow = 1) %*% t(X_svd$v[, 1, drop = FALSE])
+f_norm <- sqrt(sum((X - rank1)^2))
+f_norm
+```
+
+It has the most significant singular value, which captures the most variance in the data, but it drops all other singular values and singular vectors, losing the information and details they contain.
+
+```{r}
+set.seed(228)
+n <- 100
+x <- runif(n, -5, 5)
+y <- 3 + 2 * x + rnorm(n, sd = 1)
+X_mat <- cbind(1, x)
+qrX <- qr(X_mat)
+beta_qr <- backsolve(qr.R(qrX), qr.qty(qrX, y))
+beta_lm <- coef(lm(y ~ x))
+beta_qr
+```
+
+QR decomposition is more stable and efficient because it avoids directly computing the inverse of X'X, which can be unstable when X has multicollinearity. It decomposes the matrix into an orthogonal matrix and an upper triangular matrix, allowing for a more stable solution to the linear regression problem.
+
+## 3
+
+### 3.1
+
+```{r}
+rosenbrock <- function(x) {
+  x1 <- x[1]
+  x2 <- x[2]
+  return( (1 - x1)^2 + 100 * (x2 - x1^2)^2 )
+}
+
+rosenbrock_grad <- function(x) {
+  x1 <- x[1]
+  x2 <- x[2]
+  grad_x1 <- -2 * (1 - x1) - 400 * x1 * (x2 - x1^2)
+  grad_x2 <- 200 * (x2 - x1^2)
+  return(c(grad_x1, grad_x2))
+}
+
+gradient_descent <- function(init, grad_fn, learning_rate, max_iter, tol) {
+  x <- init
+  iter_count <- max_iter 
+  for (i in 1:max_iter) {
+    grad <- grad_fn(x)
+    grad_norm <- sqrt(sum(grad^2))
+    if (grad_norm < tol) {
+      iter_count <- i
+      break
+    }
+    x <- x - learning_rate * grad
+  }
+  return(list(
+    solution = x,
+    function_value = rosenbrock(x), 
+    iteration_count = iter_count
+  ))
+}
+
+result <- gradient_descent(init = c(-1.2, 1.0), grad_fn = rosenbrock_grad, learning_rate = 0.001, max_iter = 10000, tol = 1e-6)
+result
+```
+
+### 3.2
+
+```{r}
+bfgs <- optim(
+  par = c(-1.2, 1.0),
+  fn = rosenbrock,
+  gr = rosenbrock_grad,
+  method = "BFGS",
+  control = list(maxit = 10000, reltol = 1e-6)
+)
+
+nm <- optim(
+  par = c(-1.2, 1.0),
+  fn = rosenbrock,
+  method = "Nelder-Mead",
+  control = list(maxit = 10000, reltol = 1e-6)
+)
+
+comparison <- data.frame(
+  Method = c("Gradient Descent", "BFGS", "Nelder-Mead"),
+  Solution = I(list(result$solution, bfgs$par, nm$par)),
+  Function_Value = c(result$function_value, bfgs$value, nm$value),
+  Iteration_Count = c(result$iteration_count, bfgs$counts[1], nm$counts[1]),
+  Function_Evaluations = c(result$iteration_count, bfgs$counts["function"], nm$counts["function"])
+)
+comparison
+```
+
+### 3.3
+
+```{r}
+run_simulation <- function(n_samples, n_reps, dist_type) {
+
+  results <- replicate(n_reps, {
+    sample_data <- if (dist_type == "normal") {
+
+      rnorm(n_samples, mean = 0, sd = 1)
+      
+    } else if (dist_type == "t") {
+      rt(n_samples, df = 3)
+      
+    } else if (dist_type == "contaminated") {
+      is_outlier <- runif(n_samples) < 0.1
+      x <- rnorm(n_samples, 0, 1)
+      x[is_outlier] <- rnorm(sum(is_outlier), 0, sqrt(10))
+      x
+      
+    } else {
+      stop("Error.")
+    }
+
+    c(mean = mean(sample_data),
+      median = median(sample_data),
+      trimmed_mean = mean(sample_data, trim = 0.1))
+  })
+  
+  return(as.data.frame(t(results)))
+}
+
+set.seed(228) 
+sample_size <- 30
+replications <- 1000
+
+
+normal <- run_simulation(sample_size, replications, "normal")
+t_dist <- run_simulation(sample_size, replications, "t")
+contaminated <- run_simulation(sample_size, replications, "contaminated")
+calculate_metrics <- function(sim_df, dist_name) {
+  metrics_matrix <- sapply(sim_df, function(estimator_values) {
+    true_theta <- 0
+    est_bias <- mean(estimator_values) - true_theta
+    est_var <- var(estimator_values)
+    est_mse <- mean((estimator_values - true_theta)^2)
+    return(c(Bias = est_bias, Variance = est_var, MSE = est_mse))
+  })
+  
+  performance_df <- as.data.frame(t(metrics_matrix))
+  performance_df$Estimator <- rownames(performance_df)
+  performance_df$Distribution <- dist_name
+  return(performance_df)
+}
+
+summary <- rbind(
+  calculate_metrics(normal, "Normal(0,1)"),
+  calculate_metrics(t_dist, "t(df=3)"),
+  calculate_metrics(contaminated, "Contaminated Normal")
+)
+
+print(summary)
+```
+
+Normal(0,1): the Mean is the most efficient estimator, as it utilizes all sample information.
+
+t(df=3) and Contaminated Normal distributions: the 10% Trimmed Mean is the most efficient estimator. The Mean fails in these scenarios because its variance is significantly inflated by heavy tails and outliers. Ultimately, the Trimmed Mean provides the best balance of robustness and efficiency by neutralizing extreme values while maintaining higher precision than the Median.
+
+## 4
+
+### 4.1
+
+```{r}
+
+set.seed(42)
+returns <- rnorm(50, mean = 0.08, sd = 0.12)
+returns <- returns + rexp(50, rate = 20) - 0.05
+
+bootstrap_mean <- function(data, n_boot = 2000, ci_type = c("percentile", "basic", "normal")) {
+  boot_dist <- replicate(n_boot, {
+    resample <- sample(data, size = length(data), replace = TRUE)
+    mean(resample)
+  })
+
+  theta_hat <- mean(data)
+  se_boot <- sd(boot_dist)
+  alpha <- 0.05
+  ci_results <- list()
+  if ("normal" %in% ci_type) {
+    z_score <- qnorm(1 - alpha/2)
+    ci_results$normal <- c(theta_hat - z_score * se_boot, theta_hat + z_score * se_boot)
+  }
+  if ("percentile" %in% ci_type) {
+    ci_results$percentile <- quantile(boot_dist, probs = c(alpha/2, 1 - alpha/2))
+  }
+
+  if ("basic" %in% ci_type) {
+    quants <- quantile(boot_dist, probs = c(alpha/2, 1 - alpha/2))
+    ci_results$basic <- c(2 * theta_hat - quants[2], 2 * theta_hat - quants[1])
+  }
+  
+  return(list(observed_mean = theta_hat, se = se_boot, ci = ci_results, dist = boot_dist))
+}
+
+boot <- bootstrap_mean(returns, n_boot = 2000, ci_type = c("percentile", "basic", "normal"))
+ci_report <- data.frame(
+  Method = c("Normal", "Percentile", "Basic"),
+  Lower_Bound = c(boot$ci$normal[1], 
+                  boot$ci$percentile[1], 
+                  boot$ci$basic[1]),
+  Upper_Bound = c(boot$ci$normal[2], 
+                  boot$ci$percentile[2], 
+                  boot$ci$basic[2])
+)
+
+cat("Observed Statistics\n")
+cat("Observed Mean:", round(boot$observed_mean, 4), "\n")
+cat("Bootstrap SE:", round(boot$se, 4), "\n\n")
+
+cat("95% CI\n")
+print(ci_report)
+
+hist(boot$dist, 
+     breaks = 40, 
+     col = "lightblue", 
+     border = "white",
+     main = "Bootstrap Distribution of the Mean (Returns Data)", 
+     xlab = "Bootstrap Means",
+     prob = TRUE)
+
+lines(density(boot$dist), col = "darkblue", lwd = 2)
+abline(v = boot$observed_mean, col = "black", lwd = 2)
+ci_types <- names(boot$ci)
+ci_colors <- c("firebrick", "dodgerblue", "forestgreen")
+
+for (i in seq_along(ci_types)) {
+  abline(v = boot$ci[[i]], col = ci_colors[i], lty = 2, lwd = 2)
+}
+legend("topright", 
+       legend = c("Observed Mean", "Normal CI", "Percentile CI", "Basic CI"),
+       col = c("black", ci_colors), 
+       lty = c(1, 2, 2, 2), 
+       lwd = 2, 
+       bty = "n",
+       cex = 0.8)
+```
+
+The Basic or Percentile methods are most appropriate. The inclusion of an exponential component creates skewness that violates the symmetry assumption required for the Normal interval. Specifically, the Basic interval adjusts for this asymmetry by using the distribution of errors, providing more accurate coverage than the symmetric Normal approximation.
+
+### 4.2
+
+```{r}
+set.seed(123)
+control <- rnorm(40, mean = 10, sd = 2)
+treatment <- rnorm(40, mean = 11.5, sd = 2)
+bootstrap_ttest <- function(group1, group2, n_boot = 2000) {
+  obs_diff <- mean(group2) - mean(group1)
+  
+  combined_mean <- mean(c(group1, group2))
+  g1_null <- group1 - mean(group1) + combined_mean
+  g2_null <- group2 - mean(group2) + combined_mean
+  
+  set.seed(228) 
+  null_dist <- replicate(n_boot, {
+    s1 <- sample(g1_null, size = length(g1_null), replace = TRUE)
+    s2 <- sample(g2_null, size = length(g2_null), replace = TRUE)
+    mean(s2) - mean(s1)
+  })
+  
+  p_val <- mean(abs(null_dist) >= abs(obs_diff))
+  return(list(obs_diff = obs_diff, p_value = p_val, null_dist = null_dist))
+}
+test <- bootstrap_ttest(control, treatment, n_boot = 2000)
+hist(test$null_dist, breaks = 30, col = "lightcyan", border = "white",
+     main = "Bootstrap Null Distribution", xlab = "Difference in Means (H0)")
+abline(v = test$obs_diff, col = "red", lwd = 2, lty = 2)
+
+standard <- t.test(control, treatment)
+cat("Bootstrap P-value:", test$p_value, "\n")
+cat("Standard T-test P-value:", standard$p.value, "\n")
+```
+
+The bootstrap method is more effective because it builds the null distribution empirically without assuming population normality. This makes it significantly more robust for real-world biological data where parametric assumptions often fail.
