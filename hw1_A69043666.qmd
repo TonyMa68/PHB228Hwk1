@@ -4,8 +4,8 @@ author: "Maogong Ma"
 date: last-modified
 format:
   pdf:
-    toc: true
-    number-sections: true
+    toc: false
+    number-sections: false
     colorlinks: true
 execute:
   echo: true
@@ -24,9 +24,11 @@ vectorized_zscore <- function(x) {
 }
 
 loop_zscore <- function(x) {
+meanx=mean(x, na.rm = TRUE)
+sdx=sd(x, na.rm = TRUE)
 output = numeric(length(x))
 for (i in seq_along(x)) {
-  output[i] = (x[i] - mean(x, na.rm = TRUE)) / sd(x, na.rm = TRUE)
+  output[i] = (x[i] - meanx) / sdx
 }
 return(output)
 }
